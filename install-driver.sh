@@ -42,12 +42,17 @@ if [ ! -f "$DRIVERS_DIR/Distribution" ]; then
 fi
 
 # Modify the Distribution file to bypass the macOS version check
-# The installer blocks versions > 15.0; we change to 27.0 to cover Sequoia, Tahoe and beyond
+# Make InstallationCheck return true unconditionally and bump version check to 999.0
 print_green "Modifying the Distribution file to bypass macOS version check..."
-sed -i '' "s/system.version.ProductVersion, '15.0'/system.version.ProductVersion, '27.0'/g" "$DRIVERS_DIR/Distribution"
+sed -i '' "s/function InstallationCheck(prefix) {/function InstallationCheck(prefix) { return true;/g" "$DRIVERS_DIR/Distribution"
+sed -i '' "s/'15.0'/'999.0'/g" "$DRIVERS_DIR/Distribution"
+sed -i '' "s/'27.0'/'999.0'/g" "$DRIVERS_DIR/Distribution"
+
+# Also allow installation on Apple Silicon (arm64) architectures
+sed -i '' 's/hostArchitectures="x86_64"/hostArchitectures="x86_64,arm64"/g' "$DRIVERS_DIR/Distribution"
 
 # Check if the modification was successful
-if grep -q "system.version.ProductVersion, '27.0'" "$DRIVERS_DIR/Distribution"; then
+if grep -q "function InstallationCheck(prefix) { return true;" "$DRIVERS_DIR/Distribution" || grep -q "'999.0'" "$DRIVERS_DIR/Distribution"; then
     print_green "Distribution file successfully modified."
 else
     print_red "Error: Failed to modify the Distribution file."
@@ -72,6 +77,23 @@ fi
 
 print_green "Installation package successfully created!"
 print_green "The modified driver package is: HewlettPackardPrinterDrivers-fixed.pkg"
-print_yellow "You can now install the driver by double-clicking on HewlettPackardPrinterDrivers-fixed.pkg"
+echo ""
+print_yellow "To install the driver, you can either:"
+print_yellow "1. Run the terminal command:"
+print_yellow "   sudo installer -pkg HewlettPackardPrinterDrivers-fixed.pkg -target /"
+print_yellow "2. Or double-click 'HewlettPackardPrinterDrivers-fixed.pkg' in Finder."
+
+# Check if running on Apple Silicon and check Rosetta 2
+if [ "$(uname -m)" = "arm64" ]; then
+    if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+        echo ""
+        print_yellow "=========================================================="
+        print_yellow "Notice: Apple Silicon (M-series Mac) detected."
+        print_yellow "HP legacy drivers are Intel (x86_64) binaries and require Rosetta 2."
+        print_yellow "If printing fails with a 'filter failed' error, install Rosetta via:"
+        print_yellow "   softwareupdate --install-rosetta --agree-to-license"
+        print_yellow "=========================================================="
+    fi
+fi
 
 exit 0

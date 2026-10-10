@@ -116,6 +116,7 @@
                 <li>Find <code>HewlettPackardPrinterDrivers.pkg</code> inside and copy it to your Desktop</li>
                 <li>Drop that <code>.pkg</code> file in the area above</li>
                 <li>Download the fixed package and double-click it to install</li>
+                <li><strong>Apple Silicon (M1/M2/M3/M4) users:</strong> If you get <em>"The printer software is not compatible with this device"</em> or <em>"Data failed"</em>, install Rosetta 2 by running in Terminal: <code>softwareupdate --install-rosetta --agree-to-license</code></li>
             </ol>
         </div>
 
@@ -138,8 +139,9 @@
     <script>
     const XAR_MAGIC = 0x78617221;
     const XAR_HEADER_SIZE = 28;
-    const VERSION_OLD = "system.version.ProductVersion, '15.0'";
-    const VERSION_NEW = "system.version.ProductVersion, '27.0'";
+    const VERSION_OLD_15 = "system.version.ProductVersion, '15.0'";
+    const VERSION_OLD_27 = "system.version.ProductVersion, '27.0'";
+    const VERSION_NEW = "system.version.ProductVersion, '99.0'";
 
     // --- Utility functions ---
 
@@ -260,17 +262,24 @@
         }
 
         // 6. Check and perform replacement
-        if (distText.indexOf(VERSION_OLD) === -1) {
-            if (distText.indexOf(VERSION_NEW) !== -1) {
-                throw new Error('This package has already been patched!');
-            }
+        var targetOld = null;
+        if (distText.indexOf(VERSION_OLD_15) !== -1) {
+            targetOld = VERSION_OLD_15;
+        } else if (distText.indexOf(VERSION_OLD_27) !== -1) {
+            targetOld = VERSION_OLD_27;
+        } else if (distText.indexOf(VERSION_NEW) !== -1) {
+            throw new Error('This package has already been patched!');
+        } else {
             throw new Error(
                 'macOS version check not found in this package. ' +
                 'It may not be the expected HP driver installer.'
             );
         }
 
-        const modifiedText = distText.split(VERSION_OLD).join(VERSION_NEW);
+        var modifiedText = distText.split(targetOld).join(VERSION_NEW);
+        if (modifiedText.indexOf('hostArchitectures="x86_64"') !== -1) {
+            modifiedText = modifiedText.replace('hostArchitectures="x86_64"', 'hostArchitectures="x86_64,arm64"');
+        }
         const modifiedBytes = new TextEncoder().encode(modifiedText);
 
         // 7. Recompress
